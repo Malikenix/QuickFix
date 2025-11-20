@@ -1,0 +1,59 @@
+FROM php:8.3-apache
+
+RUN apt-get clean
+RUN rm -rf /var/lib/apt/lists/*
+RUN apt-get update
+RUN apt-get upgrade -y
+
+RUN apt-get install --fix-missing -y libpq-dev
+RUN apt-get install --no-install-recommends -y libpq-dev
+RUN apt-get install -y libxml2-dev libbz2-dev zlib1g-dev
+RUN apt-get -y install -v libsqlite3-dev libsqlite3-0 mariadb-client curl exif ftp 
+RUN apt-get update && apt-get install -y \
+    libicu-dev \
+    && docker-php-ext-configure intl \
+    && docker-php-ext-install intl
+RUN docker-php-ext-install mysqli
+RUN docker-php-ext-install pdo_mysql
+RUN apt-get -y install --fix-missing zip unzip
+
+RUN apt-get install -y libpq-dev \
+  && docker-php-ext-configure pgsql -with-pgsql=/usr/local/pgsql \
+  && docker-php-ext-install pdo pdo_pgsql pgsql
+
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+
+COPY ./d-conf/php $PHP_INI_DIR/
+
+COPY . /var/www/html
+
+WORKDIR /var/www/html
+RUN mkdir -p /var/www/html/writable \
+    && chmod 777 -Rv /var/www/html/writable
+
+
+RUN a2enmod rewrite
+
+ADD d-conf/apache.conf /etc/apache2/sites-available/000-default.conf
+
+RUN apt-get update && \
+    apt-get install -y \
+        zlib1g-dev libzip-dev sendmail
+
+
+RUN echo "sendmail_path=/usr/sbin/sendmail -t -i" >> /usr/local/etc/php/conf.d/sendmail.ini 
+
+RUN docker-php-ext-install pdo_mysql
+
+RUN docker-php-ext-install zip
+
+RUN sed -i '/#!\/bin\/sh/aservice sendmail restart' /usr/local/bin/docker-php-entrypoint
+
+RUN sed -i '/#!\/bin\/sh/aecho "$(hostname -i)\t$(hostname) $(hostname).localhost" >> /etc/hosts' /usr/local/bin/docker-php-entrypoint
+
+# And clean up the image
+
+RUN rm -rf /var/lib/apt/lists/*
+
+EXPOSE 80
+
